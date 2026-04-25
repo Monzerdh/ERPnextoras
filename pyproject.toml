@@ -1,0 +1,20 @@
+[project]
+name = "munzer_app"
+authors = [
+    { name = "Monzerdh", email = "Monzerdh@users.noreply.github.com" }
+]
+description = "Custom inventory tooling for ORAS — Item Master Report S"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Monzerdh/ERPnextoras"
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "munzer_app"

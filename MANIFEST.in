@@ -1,0 +1,16 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include munzer_app *.css
+recursive-include munzer_app *.csv
+recursive-include munzer_app *.html
+recursive-include munzer_app *.js
+recursive-include munzer_app *.json
+recursive-include munzer_app *.md
+recursive-include munzer_app *.png
+recursive-include munzer_app *.py
+recursive-include munzer_app *.svg
+recursive-include munzer_app *.txt

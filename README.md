@@ -1,69 +1,94 @@
-# ORAS — ERPNext custom assets
+# Munzer App
 
-This repo holds files that drop into the existing **`oras`** Frappe app on the bench.
-The directory layout mirrors what lives inside `apps/oras/` so you can copy it across or
-pull it directly on the server.
+Standalone Frappe app that ships **Item Master Report S** — a faster,
+scanner-first inventory query report for ORAS, with multi-barcode scanning,
+column show/hide, instant CSV export, status badges and an ORAS-branded UI.
 
-## Contents
+> **Repo URL**: https://github.com/Monzerdh/ERPnextoras
+> **App name**: `munzer_app` &nbsp;·&nbsp; **Module**: `Munzer App` &nbsp;·&nbsp; **Requires**: ERPNext
+
+## Layout
 
 ```
-oras/
-  oras/
+munzer_app/                         <- python package (top-level)
+  __init__.py                       <- __version__
+  hooks.py
+  modules.txt                       <- "Munzer App"
+  patches.txt
+  config/
+    __init__.py
+    desktop.py                      <- workspace card
+  munzer_app/                       <- module folder (slug of "Munzer App")
+    __init__.py
     report/
-      item_master_report_s/        # New: Item Master Report S
+      __init__.py
+      item_master_report_s/
         __init__.py
         item_master_report_s.json
         item_master_report_s.py
         item_master_report_s.js
+pyproject.toml
+setup.py
+requirements.txt
+MANIFEST.in
+license.txt
 ```
 
-## Item Master Report S
+## What the report does
 
-A faster, scanner-first alternative to **Item Master Report**, with:
+- ORAS palette (deep navy + red `#E8173A`, glassmorphism filter card)
+- 📷 **Scan Mode** dialog: auto-focused input, accumulates scans as red chips,
+  ORs across `Serial No`, `Item Code`, `ASIN`, `Tracking No`, and the
+  `Item Barcode` child table on Item.
+- 👁 **Columns** popover with Show-all / Hide-all, persisted in `localStorage`.
+- ⬇ **Quick CSV** (instant, client-side) + 📊 **Excel/PDF** via Frappe's export.
+- ↺ **Reset** restores defaults (incl. `Status = Active`).
+- Status pill-badges (green/grey/red/blue/orange), green/red stock-balance,
+  ASIN as Amazon link, grade pill.
 
-- ORAS brand styling (deep navy + red gradient, glassmorphism card)
-- **Scan Mode** dialog — auto-focuses an input so warehouse barcode scanners can
-  fire codes one after another. Supports Serial No, ASIN, Item Code, Tracking No,
-  and Item Barcode child-table values. Codes accumulate as chips, then apply as a
-  single OR filter.
-- **Multi-select filters** for Item, Customer, Sales Invoice, Item Group (3
-  levels), Grade, Batch, Tracking, Status, Pallet/Trolley, Shelf, Box.
-- **Status badges** with color coding (Active green, Inactive grey, Consumed red,
-  Delivered blue, Expired orange).
-- **Stock Balance** colored green when positive, red when zero.
-- **Column show/hide** popover — choices persist per browser via `localStorage`.
-- **Quick CSV** export (client-side, instant) and **Excel/PDF** via the standard
-  Frappe export dialog.
-- **Pagination buttons** styled to match the rest of the UI.
-- **Reset filters** button — restores defaults including `Status = Active`.
+## Install on Frappe Cloud (`orasbeta.k.frappe.cloud`)
 
-## Installation
+This site is hosted on Frappe Cloud, so you can't `bench install-app` from a
+shell — you wire the GitHub repo to the bench through the dashboard.
 
-On the ERPNext server, inside the bench:
+1. **Sign in** at https://frappecloud.com → open your bench (the one running
+   `orasbeta`).
+2. **Bench → Apps → Add App**. Pick **From GitHub**.
+3. If the repo is private, click **Install GitHub App** first and grant
+   `Monzerdh/ERPnextoras` access to the Frappe Cloud GitHub App.
+4. Paste `https://github.com/Monzerdh/ERPnextoras`, branch `main`, click **Add**.
+5. Frappe Cloud builds a new bench candidate. When it's green, click **Deploy**.
+6. **Sites → orasbeta.k.frappe.cloud → Apps → Install App** → pick `munzer_app`.
+
+Once installed, the report lives at:
+
+```
+https://orasbeta.k.frappe.cloud/app/query-report/Item%20Master%20Report%20S
+```
+
+## Install on a self-hosted bench
 
 ```bash
-cd ~/frappe-bench/apps/oras
-git pull origin main
 cd ~/frappe-bench
-bench --site <your-site> migrate         # registers the new Report DocType
-bench --site <your-site> clear-cache
-bench build --app oras                   # picks up the new JS
+bench get-app https://github.com/Monzerdh/ERPnextoras --branch main
+bench --site <your-site> install-app munzer_app
+bench --site <your-site> migrate
+bench build --app munzer_app
 ```
 
-After that the report is reachable at:
+## Uninstall
 
+```bash
+bench --site <your-site> uninstall-app munzer_app
+bench remove-app munzer_app
 ```
-/app/query-report/Item%20Master%20Report%20S
-```
 
-If your local clone of this repo isn't the `oras` app itself, copy the
-`oras/oras/report/item_master_report_s/` folder into your `apps/oras/oras/report/`
-directory before running migrate.
+## Notes
 
-## Notes on backwards compatibility
-
-- The original `Item Master Report` is **untouched**. The new report sits alongside it.
-- The Python executor is parameterized — no SQL injection risk from filter values.
-- The new `scan_codes` filter is opt-in: empty value = no extra clause.
-- Roles match the original report (Item Manager, Stock Manager, Stock User, Sales User,
-  Purchase User, Maintenance User, Accounts User, Manufacturing User, Desk User).
+- The original `Item Master Report` (in the `oras` app on your bench) is
+  untouched. The new report sits alongside it, in its own module so the two
+  never collide.
+- Python is parameterized — no SQL injection from filter values.
+- Roles match the original report (Item Manager, Stock Manager, Stock User,
+  Sales User, Purchase User, Maintenance User, Accounts User, Manufacturing
+  User, Desk User).
