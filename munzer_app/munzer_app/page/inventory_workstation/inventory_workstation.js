@@ -16,6 +16,12 @@ const ROW_HEIGHT = 44; // px — keep in sync with .iw-tr CSS
 const PAGE_SIZE = 500;
 const ALL_STATUSES = ["Active", "Inactive", "Consumed", "Delivered", "Expired"];
 
+// Small formatters — fmtNum / format_currency don't exist on
+// every Frappe version, so we use vanilla Intl with sane defaults.
+const fmtNum = (v) => Number(v || 0).toLocaleString("en-US");
+const fmtMoney = (v) =>
+	Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const STATUS_TONES = {
 	Active: { bg: "#E1F0EC", fg: "#067D62", dot: "#067D62" },
 	Inactive: { bg: "#EAEDED", fg: "#565959", dot: "#565959" },
@@ -275,11 +281,11 @@ class InventoryWorkstation {
 				<button class="iw-btn-link" id="iw-deselect">${__("Deselect")}</button>` : ""}
 			</div>
 			<div class="iw-foot-right">
-				<span class="iw-stat"><span class="iw-stat-k">${__("Total Items")}:</span><b>${frappe.utils.format_number(total)}</b></span>
+				<span class="iw-stat"><span class="iw-stat-k">${__("Total Items")}:</span><b>${fmtNum(total)}</b></span>
 				<span class="iw-stat-sep">·</span>
-				<span class="iw-stat"><span class="iw-stat-k">${__("Purchase Value")}:</span><b>AED ${frappe.utils.format_currency(tv)}</b></span>
+				<span class="iw-stat"><span class="iw-stat-k">${__("Purchase Value")}:</span><b>AED ${fmtMoney(tv)}</b></span>
 				<span class="iw-stat-sep">·</span>
-				<span class="iw-stat"><span class="iw-stat-k">${__("Selling Value")}:</span><b>AED ${frappe.utils.format_currency(tsv)}</b></span>
+				<span class="iw-stat"><span class="iw-stat-k">${__("Selling Value")}:</span><b>AED ${fmtMoney(tsv)}</b></span>
 				<span class="iw-stat-sep">·</span>
 				<span class="iw-stat"><span class="iw-stat-k">${__("Avg Days in Stock")}:</span><b>${avg}</b></span>
 			</div>
@@ -289,8 +295,8 @@ class InventoryWorkstation {
 	updateCount() {
 		const showing = this.state.rowsByIndex.size;
 		const total = this.state.total;
-		$("#iw-showing", this.page.body).text(`${__("Showing")} ${frappe.utils.format_number(showing)} ${__("of")} ${frappe.utils.format_number(total)} ${__("records")}`);
-		$("#iw-count", this.page.body).text(`${frappe.utils.format_number(showing)} / ${frappe.utils.format_number(total)} ${__("rows")}`);
+		$("#iw-showing", this.page.body).text(`${__("Showing")} ${fmtNum(showing)} ${__("of")} ${fmtNum(total)} ${__("records")}`);
+		$("#iw-count", this.page.body).text(`${fmtNum(showing)} / ${fmtNum(total)} ${__("rows")}`);
 	}
 
 	// ---------------------------------------------------------------- events
@@ -603,7 +609,7 @@ class InventoryWorkstation {
 		} else if (c.link && c.key === "serial_no") {
 			inner = `<a href="/app/serial-no/${encodeURIComponent(v || "")}" target="_blank" class="iw-link iw-mono">${frappe.utils.escape_html(v || "")}</a>`;
 		} else if (c.money) {
-			inner = v ? `AED ${frappe.utils.format_currency(v)}` : "—";
+			inner = v ? `AED ${fmtMoney(v)}` : "—";
 		} else if (c.date) {
 			inner = v ? frappe.datetime.str_to_user(v).split(" ")[0] : "—";
 		} else if (c.pill && v) {
@@ -667,7 +673,7 @@ class InventoryWorkstation {
 
 		const total = selected ? this.state.selected.size : this.state.total;
 		frappe.show_alert({
-			message: `${__("Exporting")} ${frappe.utils.format_number(total)} ${__("rows…")}`,
+			message: `${__("Exporting")} ${fmtNum(total)} ${__("rows…")}`,
 			indicator: "orange",
 		});
 
