@@ -34,6 +34,7 @@ const STATUS_TONES = {
 // the user has to opt in via the Columns dialog. User choices are persisted in
 // localStorage under STORAGE_VIS so refreshing keeps the same view.
 const STORAGE_VIS = "munzer_iw_columns_v2";
+const STORAGE_ORDER = "munzer_iw_col_order_v1";
 
 const COLUMNS = [
 	{ key: "serial_no",            label: "Serial No",       sortable: true, width: 170, align: "left",  mono: true, link: true,           defaultVisible: true },
@@ -109,6 +110,7 @@ class InventoryWorkstation {
 			sort_dir: "desc",
 			openDropdown: null,
 			colVis: this.loadColVis(), // Map<string, bool> — explicit user choices
+			colOrder: this.loadColOrder(), // Array<string> — user's preferred column order
 		};
 		this.searchDebounce = null;
 		this.scanDebounce = null;
@@ -892,13 +894,48 @@ class InventoryWorkstation {
 		} catch (e) {}
 	}
 
+	loadColOrder() {
+		try {
+			const raw = localStorage.getItem(STORAGE_ORDER);
+			const arr = raw ? JSON.parse(raw) : [];
+			return Array.isArray(arr) ? arr.filter((k) => typeof k === "string") : [];
+		} catch (e) {
+			return [];
+		}
+	}
+
+	saveColOrder() {
+		try {
+			localStorage.setItem(STORAGE_ORDER, JSON.stringify(this.state.colOrder));
+		} catch (e) {}
+	}
+
 	isColVisible(col) {
 		const v = this.state.colVis.get(col.key);
 		return v === undefined ? !!col.defaultVisible : !!v;
 	}
 
+	// All columns sorted by user's saved order, with any new (unknown) keys
+	// appended at the end in source order. Sticky-right columns are always
+	// pinned to the very end so the View on Amazon button stays frozen.
+	orderedColumns() {
+		const map = new Map(COLUMNS.map((c) => [c.key, c]));
+		const ordered = [];
+		const seen = new Set();
+		for (const k of this.state.colOrder) {
+			if (map.has(k) && !seen.has(k)) {
+				ordered.push(map.get(k));
+				seen.add(k);
+			}
+		}
+		for (const c of COLUMNS) if (!seen.has(c.key)) ordered.push(c);
+		const fixed = ordered.filter((c) => c.sticky === "right");
+		const flex = ordered.filter((c) => c.sticky !== "right");
+		return [...flex, ...fixed];
+	}
+
 	visibleColumns() {
-		return COLUMNS.filter((c) => this.isColVisible(c));
+		return this.orderedColumns().filter((c) => this.isColVisible(c));
 	}
 
 	openColumnDialog() {
@@ -912,22 +949,13 @@ class InventoryWorkstation {
 					fieldtype: "HTML",
 					options: `
 						<div class="iw-col-mgr">
+							<div class="iw-col-mgr-hint">${__("Drag the ⋮⋮ handle to reorder columns. Pinned columns stay at the right.")}</div>
 							<div class="iw-col-mgr-actions">
-								<button type="button" class="iw-btn-link" data-act="all">${__("Show all")}</button>
-								<button type="button" class="iw-btn-link" data-act="none">${__("Hide all")}</button>
-								<button type="button" class="iw-btn-link" data-act="reset">${__("Reset to defaults")}</button>
+								<button type="button" data-act="all">${__("Show all")}</button>
+								<button type="button" data-act="none">${__("Hide all")}</button>
+								<button type="button" data-act="reset">${__("Reset to defaults")}</button>
 							</div>
-							<div class="iw-col-mgr-list">
-								${COLUMNS.map(
-									(c) => `
-									<label class="iw-col-mgr-row">
-										<input type="checkbox" data-key="${c.key}" ${me.isColVisible(c) ? "checked" : ""} />
-										<span>${frappe.utils.escape_html(c.label)}</span>
-										${!c.defaultVisible ? `<span class="iw-col-mgr-tag">${__("optional")}</span>` : ""}
-									</label>
-								`,
-								).join("")}
-							</div>
+							<div class="iw-col-mgr-list"></div>
 						</div>
 					`,
 				},
@@ -939,19 +967,58 @@ class InventoryWorkstation {
 		dialog.show();
 		const $w = dialog.$wrapper;
 
-		const apply = () => {
+		const renderList = () => {
+			const html = me
+				.orderedColumns()
+				.map((c) => {
+					const isFixed = c.sticky === "right";
+					const checked = me.isColVisible(c) ? "checked" : "";
+					const label = c.label || c.key;
+					const tag = isFixed
+						? `<span class="iw-col-mgr-tag iw-col-mgr-tag-fixed">${__("pinned right")}</span>`
+						: !c.defaultVisible
+							? `<span class="iw-col-mgr-tag">${__("optional")}</span>`
+							: "";
+					return `
+						<div class="iw-col-mgr-row ${isFixed ? "iw-col-fixed" : ""}"
+							data-key="${c.key}" ${isFixed ? "" : 'draggable="true"'}>
+							<span class="iw-col-handle" title="${isFixed ? __("Pinned, can't be moved") : __("Drag to reorder")}">⋮⋮</span>
+							<input type="checkbox" data-key="${c.key}" ${checked} />
+							<span class="iw-col-mgr-label">${frappe.utils.escape_html(label || "(unnamed)")}</span>
+							${tag}
+						</div>
+					`;
+				})
+				.join("");
+			$w.find(".iw-col-mgr-list").html(html);
+		};
+
+		renderList();
+
+		const applyTable = () => {
 			me.saveColVis();
 			me.renderTableHeader();
 			me.renderTableBody(true);
 		};
 
-		$w.on("change", "input[type=checkbox]", (e) => {
+		// Visibility toggle
+		$w.on("change", ".iw-col-mgr-list input[type=checkbox]", (e) => {
 			const key = e.currentTarget.dataset.key;
 			me.state.colVis.set(key, e.currentTarget.checked);
-			apply();
+			applyTable();
+		});
+		// Make label text click toggle the checkbox (since we use <div> not <label>
+		// so the row can be a drag source).
+		$w.on("click", ".iw-col-mgr-label", (e) => {
+			const cb = e.currentTarget.parentNode.querySelector("input[type=checkbox]");
+			if (cb) {
+				cb.checked = !cb.checked;
+				$(cb).trigger("change");
+			}
 		});
 
-		$w.on("click", "[data-act]", (e) => {
+		// Action buttons
+		$w.on("click", ".iw-col-mgr-actions [data-act]", (e) => {
 			const act = e.currentTarget.dataset.act;
 			if (act === "all") {
 				COLUMNS.forEach((c) => me.state.colVis.set(c.key, true));
@@ -959,12 +1026,52 @@ class InventoryWorkstation {
 				COLUMNS.forEach((c) => me.state.colVis.set(c.key, false));
 			} else if (act === "reset") {
 				me.state.colVis.clear();
+				me.state.colOrder = [];
+				me.saveColOrder();
 			}
-			$w.find("input[type=checkbox]").each((_i, el) => {
-				const col = COLUMNS.find((c) => c.key === el.dataset.key);
-				el.checked = me.isColVisible(col);
-			});
-			apply();
+			renderList();
+			applyTable();
+		});
+
+		// Drag-and-drop reordering (HTML5 native)
+		let dragKey = null;
+		$w.on("dragstart", '.iw-col-mgr-row[draggable="true"]', (e) => {
+			dragKey = e.currentTarget.dataset.key;
+			e.originalEvent.dataTransfer.effectAllowed = "move";
+			// Firefox needs some data set
+			try { e.originalEvent.dataTransfer.setData("text/plain", dragKey); } catch (_) {}
+			e.currentTarget.classList.add("iw-dragging");
+		});
+		$w.on("dragend", ".iw-col-mgr-row", (e) => {
+			e.currentTarget.classList.remove("iw-dragging");
+			$w.find(".iw-col-mgr-row").removeClass("iw-drop-before iw-drop-after");
+			if (dragKey) {
+				const newOrder = $w
+					.find(".iw-col-mgr-row")
+					.map((_i, el) => el.dataset.key)
+					.get();
+				me.state.colOrder = newOrder;
+				me.saveColOrder();
+				applyTable();
+			}
+			dragKey = null;
+		});
+		$w.on("dragover", '.iw-col-mgr-row[draggable="true"]', (e) => {
+			if (!dragKey || dragKey === e.currentTarget.dataset.key) return;
+			e.preventDefault();
+			e.originalEvent.dataTransfer.dropEffect = "move";
+			const dragEl = $w.find(`.iw-col-mgr-row[data-key="${dragKey}"]`)[0];
+			if (!dragEl) return;
+			const rect = e.currentTarget.getBoundingClientRect();
+			const before = e.originalEvent.clientY - rect.top < rect.height / 2;
+			if (before) {
+				e.currentTarget.parentNode.insertBefore(dragEl, e.currentTarget);
+			} else {
+				e.currentTarget.parentNode.insertBefore(dragEl, e.currentTarget.nextSibling);
+			}
+		});
+		$w.on("drop", ".iw-col-mgr-row", (e) => {
+			e.preventDefault();
 		});
 	}
 
@@ -1400,9 +1507,15 @@ const STYLES = `
 
 /* ---- column manager dialog ---- */
 .iw-col-mgr { display:flex; flex-direction:column; gap:10px; }
+.iw-col-mgr-hint {
+	font-size:12px;
+	color:#6F7373;
+	padding:2px 2px 6px;
+	border-bottom:1px solid #ECECEC;
+}
 .iw-col-mgr-actions {
 	display:flex; gap:8px; flex-wrap:wrap;
-	padding:6px 0 10px;
+	padding:6px 0;
 	border-bottom:1px solid #ECECEC;
 }
 .iw-col-mgr-actions button {
@@ -1422,17 +1535,48 @@ const STYLES = `
 	display:flex; flex-direction:column;
 	max-height: 50vh;
 	overflow-y:auto;
+	padding:2px 0;
 }
 .iw-col-mgr-row {
 	display:flex; align-items:center; gap:10px;
 	padding:7px 6px;
 	border-radius:6px;
-	cursor:pointer;
 	font-size:13px;
 	color:#0F1111;
+	background:#FFFFFF;
+	transition: background 0.1s ease, opacity 0.15s ease;
 }
 .iw-col-mgr-row:hover { background:#FFF8EB; }
-.iw-col-mgr-row input { accent-color:#FF9900; cursor:pointer; }
+.iw-col-mgr-row.iw-dragging {
+	opacity:0.45;
+	background:#FFF1D6;
+}
+.iw-col-mgr-row input[type=checkbox] {
+	accent-color:#FF9900;
+	cursor:pointer;
+	flex-shrink:0;
+}
+.iw-col-mgr-label {
+	flex:1;
+	cursor:pointer;
+	user-select:none;
+}
+.iw-col-handle {
+	cursor:grab;
+	color:#888C8C;
+	font-size:14px;
+	font-weight:700;
+	letter-spacing:-2px;
+	padding:0 4px;
+	user-select:none;
+	flex-shrink:0;
+	line-height:1;
+}
+.iw-col-handle:active { cursor:grabbing; }
+.iw-col-fixed .iw-col-handle {
+	cursor:not-allowed;
+	color:#D5D9D9;
+}
 .iw-col-mgr-tag {
 	margin-left:auto;
 	font-size:10px;
@@ -1442,6 +1586,11 @@ const STYLES = `
 	background:#EAEDED;
 	padding:1px 7px;
 	border-radius:4px;
+	flex-shrink:0;
+}
+.iw-col-mgr-tag-fixed {
+	color:#C7511F;
+	background:#FFE8D6;
 }
 
 /* ---- sticky right column (View on Amazon action) ---- */
