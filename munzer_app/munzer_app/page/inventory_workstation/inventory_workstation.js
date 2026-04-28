@@ -1314,45 +1314,112 @@ const STYLES = `
 .iw-pop {
 	position:absolute;
 	z-index:1100;
-	background:#fff;
-	border:1px solid var(--bd, #D5D9D9);
-	border-radius:8px;
-	box-shadow:0 12px 32px rgba(0,0,0,0.12);
+	background:#FFFFFF;
+	border:1px solid #D5D9D9;
+	border-radius:10px;
+	box-shadow: 0 4px 12px rgba(15,17,17,0.08), 0 16px 40px rgba(15,17,17,0.16);
 	display:flex; flex-direction:column;
-	width:280px;
-	max-height:380px;
+	width:300px;
+	max-height:420px;
 	overflow:hidden;
+	font-family: "Amazon Ember","Helvetica Neue",-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+	color:#0F1111;
 }
-.iw-pop-head { padding:8px; border-bottom:1px solid #ECECEC; }
+.iw-pop-head { padding:10px; border-bottom:1px solid #ECECEC; background:#FAFAFA; }
 .iw-pop-search {
 	width:100%;
 	border:1px solid #D5D9D9;
 	border-radius:6px;
-	padding:6px 8px;
+	padding:7px 10px;
 	font-size:13px;
 	outline:none;
+	background:#fff;
+	color:#0F1111;
+	transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.iw-pop-search:focus { border-color:#FF9900; box-shadow:0 0 0 3px rgba(228,136,0,0.15); }
+.iw-pop-search:focus { border-color:#FF9900; box-shadow:0 0 0 3px rgba(228,136,0,0.18); }
 .iw-pop-list { flex:1; overflow-y:auto; padding:4px 0; }
 .iw-pop-empty { padding:14px; text-align:center; color:#6F7373; font-size:12px; }
 .iw-pop-opt {
 	display:flex; align-items:center; gap:8px;
-	padding:6px 10px;
+	padding:7px 12px;
 	cursor:pointer;
 	font-size:13px;
+	color:#0F1111;
 }
 .iw-pop-opt:hover { background:#FFF8EB; }
 .iw-pop-opt.checked { background:#FFF1D6; }
 .iw-pop-opt input { accent-color:#FF9900; }
 .iw-pop-opt-hint { color:#6F7373; font-size:11px; margin-left:auto; }
-.iw-pop-foot { display:flex; justify-content:space-between; padding:8px; border-top:1px solid #ECECEC; }
+.iw-pop-foot {
+	display:flex; align-items:center; justify-content:space-between;
+	gap:8px;
+	padding:10px;
+	border-top:1px solid #ECECEC;
+	background:#FAFAFA;
+}
+
+/* Amazon-style buttons that work both inside .munzer-iw AND inside
+   detached popovers / dialogs (which are mounted to <body>). */
+.iw-pop button,
+.iw-col-mgr button,
+.modal .iw-col-mgr button {
+	font-family: inherit;
+	cursor:pointer;
+	font-size:13px;
+	border-radius:8px;
+	transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.06s ease;
+}
+.iw-pop button:active,
+.iw-col-mgr button:active { transform: translateY(0.5px); }
+
+.iw-pop .iw-pop-apply {
+	padding:7px 18px;
+	font-weight:600;
+	color:#0F1111;
+	background: linear-gradient(180deg,#FFD814 0%,#FFC107 50%,#F7CA00 100%);
+	border:1px solid #FCD200;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+}
+.iw-pop .iw-pop-apply:hover {
+	background: linear-gradient(180deg,#F7CA00 0%,#F2C200 50%,#E6B800 100%);
+	border-color:#E6B800;
+}
+.iw-pop .iw-pop-apply:focus {
+	outline:none;
+	box-shadow: 0 0 0 3px rgba(228,136,0,0.35);
+}
+
+.iw-pop .iw-pop-clear {
+	padding:7px 14px;
+	color:#0F1111;
+	background:#FFFFFF;
+	border:1px solid #D5D9D9;
+}
+.iw-pop .iw-pop-clear:hover {
+	background:#F7F8F8;
+	border-color:#888C8C;
+}
 
 /* ---- column manager dialog ---- */
 .iw-col-mgr { display:flex; flex-direction:column; gap:10px; }
 .iw-col-mgr-actions {
-	display:flex; gap:14px;
-	padding-bottom:8px;
+	display:flex; gap:8px; flex-wrap:wrap;
+	padding:6px 0 10px;
 	border-bottom:1px solid #ECECEC;
+}
+.iw-col-mgr-actions button {
+	padding:5px 12px;
+	font-size:12px;
+	font-weight:500;
+	color:#0F1111;
+	background:#FFFFFF;
+	border:1px solid #D5D9D9;
+}
+.iw-col-mgr-actions button:hover {
+	background:#FFF8EB;
+	border-color:#FF9900;
+	color:#C7511F;
 }
 .iw-col-mgr-list {
 	display:flex; flex-direction:column;
@@ -1361,8 +1428,8 @@ const STYLES = `
 }
 .iw-col-mgr-row {
 	display:flex; align-items:center; gap:10px;
-	padding:6px 4px;
-	border-radius:4px;
+	padding:7px 6px;
+	border-radius:6px;
 	cursor:pointer;
 	font-size:13px;
 	color:#0F1111;
@@ -1376,8 +1443,8 @@ const STYLES = `
 	letter-spacing:0.6px;
 	color:#6F7373;
 	background:#EAEDED;
-	padding:1px 6px;
-	border-radius:3px;
+	padding:1px 7px;
+	border-radius:4px;
 }
 
 /* ---- sticky right column (View on Amazon action) ---- */
