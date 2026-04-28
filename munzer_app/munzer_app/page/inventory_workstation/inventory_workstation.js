@@ -60,6 +60,7 @@ const COLUMNS = [
 	{ key: "mrp",                  label: "MRP",               sortable: true, width: 110, align: "right", money: true,                      defaultVisible: false },
 	{ key: "creation",             label: "Date Added",       sortable: true, width: 130, align: "left",  date: true,                       defaultVisible: true },
 	{ key: "days_in_stock",        label: "Days in Stock",    sortable: true, width: 120, align: "right",                                   defaultVisible: true },
+	{ key: "_amazon_action",       label: "",                 sortable: false,width: 150, align: "center", action: "amazon", sticky: "right", defaultVisible: true },
 ];
 
 // All filters defined here. `kind` controls how the dropdown fetches options.
@@ -266,7 +267,8 @@ class InventoryWorkstation {
 		const cols = this.visibleColumns().map((c) => {
 			const isSorted = this.state.sort_by === c.key;
 			const arrow = isSorted ? (this.state.sort_dir === "asc" ? "▲" : "▼") : "";
-			const cls = `iw-th ${c.sortable ? "iw-th-sortable" : ""} ${isSorted ? "iw-th-sorted" : ""} iw-th-${c.align || "left"}`;
+			const stickyCls = c.sticky === "right" ? "iw-th-sticky-right" : "";
+			const cls = `iw-th ${c.sortable ? "iw-th-sortable" : ""} ${isSorted ? "iw-th-sorted" : ""} iw-th-${c.align || "left"} ${stickyCls}`;
 			return `
 				<div class="${cls}" data-sort="${c.sortable ? c.key : ""}" style="width:${c.width}px">
 					<span>${c.label}</span>
@@ -610,8 +612,18 @@ class InventoryWorkstation {
 		const v = r[c.key];
 		const align = c.align || "left";
 		let inner;
+		let titleAttr = String(v ?? "");
 
-		if (c.statusPill) {
+		if (c.action === "amazon") {
+			const asin = r.asin;
+			if (asin) {
+				const a = frappe.utils.escape_html(String(asin));
+				inner = `<a href="https://www.amazon.ae/dp/${a}" target="_blank" rel="noopener" class="iw-amzn-btn" title="ASIN ${a}">View on Amazon ↗</a>`;
+			} else {
+				inner = `<span class='iw-amzn-btn iw-amzn-btn-disabled' title="${__("No ASIN on this serial")}">— ${__("no ASIN")} —</span>`;
+			}
+			titleAttr = asin || "";
+		} else if (c.statusPill) {
 			if (v) {
 				const tone = STATUS_TONES[v] || STATUS_TONES.Inactive;
 				inner = `<span class="iw-status-pill" style="--bg:${tone.bg};--fg:${tone.fg};--dot:${tone.dot}"><span class="iw-status-dot"></span>${frappe.utils.escape_html(v)}</span>`;
@@ -637,7 +649,8 @@ class InventoryWorkstation {
 			inner = v ? frappe.utils.escape_html(String(v)) : "<span class='iw-dim'>—</span>";
 		}
 
-		return `<div class="iw-td iw-td-${align}" style="width:${c.width}px" title="${frappe.utils.escape_html(String(v ?? ""))}">${inner}</div>`;
+		const stickyCls = c.sticky === "right" ? "iw-td-sticky-right" : "";
+		return `<div class="iw-td iw-td-${align} ${stickyCls}" style="width:${c.width}px" title="${frappe.utils.escape_html(titleAttr)}">${inner}</div>`;
 	}
 
 	// ---------------------------------------------------------------- export
@@ -1179,11 +1192,12 @@ const STYLES = `
 .munzer-iw .iw-tbody { position:relative; }
 .munzer-iw .iw-tbody .iw-tr {
 	position:absolute; left:0; right:0;
-	background:#fff;
+	--row-bg: #fff;
+	background: var(--row-bg);
 }
-.munzer-iw .iw-tbody .iw-tr.iw-tr-odd { background:var(--bg-3); }
-.munzer-iw .iw-tbody .iw-tr:hover { background:#FFF8EB; }
-.munzer-iw .iw-tbody .iw-tr-selected { background:var(--sel) !important; box-shadow: inset 3px 0 0 var(--orange); }
+.munzer-iw .iw-tbody .iw-tr.iw-tr-odd { --row-bg: var(--bg-3); }
+.munzer-iw .iw-tbody .iw-tr:hover { --row-bg: #FFF8EB; }
+.munzer-iw .iw-tbody .iw-tr-selected { --row-bg: var(--sel); box-shadow: inset 3px 0 0 var(--orange); }
 
 .munzer-iw .iw-link {
 	color:var(--link);
@@ -1324,5 +1338,54 @@ const STYLES = `
 	background:#EAEDED;
 	padding:1px 6px;
 	border-radius:3px;
+}
+
+/* ---- sticky right column (View on Amazon action) ---- */
+.munzer-iw .iw-th-sticky-right,
+.munzer-iw .iw-td-sticky-right {
+	position: sticky;
+	right: 0;
+	z-index: 2;
+	background: var(--row-bg, #FFFFFF);
+	border-left: 1px solid #D5D9D9;
+	box-shadow: -6px 0 12px rgba(15,17,17,0.06);
+	display:flex;
+	align-items:center;
+	justify-content:center;
+}
+.munzer-iw .iw-thead .iw-th-sticky-right {
+	background: #FFFFFF;
+	z-index: 4;
+}
+
+.munzer-iw .iw-amzn-btn {
+	display:inline-flex;
+	align-items:center;
+	gap:4px;
+	background: linear-gradient(180deg,#FFD814 0%,#F7CA00 100%);
+	border: 1px solid #FCD200;
+	border-radius: 999px;
+	padding: 4px 12px;
+	color:#0F1111;
+	font-size:11px;
+	font-weight:600;
+	text-decoration:none !important;
+	white-space:nowrap;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+	transition: background 0.12s ease, transform 0.12s ease;
+}
+.munzer-iw .iw-amzn-btn:hover {
+	background: linear-gradient(180deg,#F7CA00 0%,#E6B800 100%);
+	color:#0F1111;
+	transform: translateY(-1px);
+	text-decoration:none !important;
+}
+.munzer-iw .iw-amzn-btn-disabled {
+	background:#EAEDED;
+	border-color:#D5D9D9;
+	color:#6F7373;
+	cursor:not-allowed;
+	transform:none;
+	pointer-events:none;
 }
 `;
