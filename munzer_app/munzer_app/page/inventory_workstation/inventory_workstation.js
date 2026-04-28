@@ -290,9 +290,8 @@ class InventoryWorkstation {
 		const sel = this.state.selected.size;
 		const s = this.state.summary || {};
 		const total = s.total_items ?? 0;
-		const tv = s.total_purchase_value ?? 0;
-		const tsv = s.total_selling_value ?? 0;
-		const avg = Math.round(s.avg_days_in_stock || 0);
+		const totalCost = s.total_cost ?? 0;
+		const totalMrp = s.total_mrp ?? 0;
 
 		$f.html(`
 			<div class="iw-foot-left">
@@ -304,11 +303,9 @@ class InventoryWorkstation {
 			<div class="iw-foot-right">
 				<span class="iw-stat"><span class="iw-stat-k">${__("Total Items")}:</span><b>${fmtNum(total)}</b></span>
 				<span class="iw-stat-sep">·</span>
-				<span class="iw-stat"><span class="iw-stat-k">${__("Purchase Value")}:</span><b>AED ${fmtMoney(tv)}</b></span>
+				<span class="iw-stat"><span class="iw-stat-k">${__("Total MRP")}:</span><b>AED ${fmtMoney(totalMrp)}</b></span>
 				<span class="iw-stat-sep">·</span>
-				<span class="iw-stat"><span class="iw-stat-k">${__("Selling Value")}:</span><b>AED ${fmtMoney(tsv)}</b></span>
-				<span class="iw-stat-sep">·</span>
-				<span class="iw-stat"><span class="iw-stat-k">${__("Avg Days in Stock")}:</span><b>${avg}</b></span>
+				<span class="iw-stat"><span class="iw-stat-k">${__("Total Cost")}:</span><b>AED ${fmtMoney(totalCost)}</b></span>
 			</div>
 		`);
 	}

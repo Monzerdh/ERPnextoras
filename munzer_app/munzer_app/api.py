@@ -317,9 +317,8 @@ def _list_summary(filters, search):
 		f"""
 		SELECT
 			COUNT(*) AS total_items,
-			COALESCE(SUM(sn.custom_rate), 0) AS total_purchase_value,
-			COALESCE(SUM(sn.custom_sold_rate), 0) AS total_selling_value,
-			COALESCE(AVG(DATEDIFF(NOW(), sn.creation)), 0) AS avg_days_in_stock
+			COALESCE(SUM(sn.custom_rate), 0) AS total_cost,
+			COALESCE(SUM(it.custom_mrp), 0) AS total_mrp
 		FROM {_from_join()}
 		WHERE {where}
 		""",
