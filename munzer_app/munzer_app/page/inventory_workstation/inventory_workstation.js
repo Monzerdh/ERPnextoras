@@ -26,7 +26,7 @@ const STATUS_TONES = {
 	Active: { bg: "#E1F0EC", fg: "#067D62", dot: "#067D62" },
 	Inactive: { bg: "#EAEDED", fg: "#565959", dot: "#565959" },
 	Consumed: { bg: "#FCE7E5", fg: "#B12704", dot: "#B12704" },
-	Delivered: { bg: "#E0F0F2", fg: "#007185", dot: "#007185" },
+	Delivered: { bg: "#FCE7E5", fg: "#B12704", dot: "#B12704" },
 	Expired: { bg: "#FFF3E0", fg: "#C7511F", dot: "#FF9900" },
 };
 
@@ -95,7 +95,7 @@ class InventoryWorkstation {
 			single_column: true,
 		});
 		this.state = {
-			filters: { status: ["Active"] },
+			filters: { status: ALL_STATUSES.slice() },
 			item_name_search: "",
 			scan_serials: "",
 			rowsByIndex: new Map(),
@@ -412,7 +412,7 @@ class InventoryWorkstation {
 
 		// Reset
 		$body.on("click", "#iw-reset", () => {
-			this.state.filters = { status: ["Active"] };
+			this.state.filters = { status: ALL_STATUSES.slice() };
 			this.state.item_name_search = "";
 			this.state.scan_serials = "";
 			$("#iw-item-name").val("");
