@@ -35,6 +35,10 @@ const STATUS_TONES = {
 // localStorage under STORAGE_VIS so refreshing keeps the same view.
 const STORAGE_VIS = "munzer_iw_columns_v2";
 const STORAGE_ORDER = "munzer_iw_col_order_v1";
+const STORAGE_WIDTHS = "munzer_iw_col_widths_v1";
+
+const MIN_COL_WIDTH = 60;
+const MAX_COL_WIDTH = 800;
 
 const COLUMNS = [
 	{ key: "serial_no",            label: "Serial No",       sortable: true, width: 170, align: "left",  mono: true, link: true,           defaultVisible: true },
@@ -111,6 +115,7 @@ class InventoryWorkstation {
 			openDropdown: null,
 			colVis: this.loadColVis(), // Map<string, bool> — explicit user choices
 			colOrder: this.loadColOrder(), // Array<string> — user's preferred column order
+			colWidths: this.loadColWidths(), // Map<string, number> — user-resized widths
 		};
 		this.searchDebounce = null;
 		this.scanDebounce = null;
@@ -271,10 +276,12 @@ class InventoryWorkstation {
 			const arrow = isSorted ? (this.state.sort_dir === "asc" ? "▲" : "▼") : "";
 			const stickyCls = c.sticky === "right" ? "iw-th-sticky-right" : "";
 			const cls = `iw-th ${c.sortable ? "iw-th-sortable" : ""} ${isSorted ? "iw-th-sorted" : ""} iw-th-${c.align || "left"} ${stickyCls}`;
+			const w = this.colWidth(c);
 			return `
-				<div class="${cls}" data-sort="${c.sortable ? c.key : ""}" style="width:${c.width}px">
+				<div class="${cls}" data-sort="${c.sortable ? c.key : ""}" data-key="${c.key}" style="width:${w}px">
 					<span>${c.label}</span>
 					<span class="iw-th-arrow">${arrow}</span>
+					<span class="iw-th-resize" data-resize-key="${c.key}" title="${__("Drag to resize · Double-click to auto-fit")}"></span>
 				</div>
 			`;
 		}).join("");
@@ -457,8 +464,9 @@ class InventoryWorkstation {
 			this.refresh();
 		});
 
-		// Sort
+		// Sort — but ignore clicks on the resize handle
 		$body.on("click", ".iw-th-sortable", (e) => {
+			if (e.target.classList.contains("iw-th-resize")) return;
 			const key = e.currentTarget.dataset.sort;
 			if (!key) return;
 			if (this.state.sort_by === key) {
@@ -469,6 +477,82 @@ class InventoryWorkstation {
 			}
 			this.renderTableHeader();
 			this.refresh();
+		});
+
+		// Excel-style column resize: drag the right edge of any header cell.
+		// Updates DOM widths inline during drag for smoothness, persists to
+		// localStorage on mouseup.
+		$body.on("mousedown", ".iw-th-resize", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const key = e.currentTarget.dataset.resizeKey;
+			const col = COLUMNS.find((c) => c.key === key);
+			if (!col) return;
+
+			const startX = e.clientX;
+			const startWidth = this.colWidth(col);
+			let latestX = startX;
+			let raf = null;
+
+			e.currentTarget.classList.add("iw-th-resize-active");
+			const prevCursor = document.body.style.cursor;
+			const prevSelect = document.body.style.userSelect;
+			document.body.style.cursor = "col-resize";
+			document.body.style.userSelect = "none";
+
+			const onMove = (ev) => {
+				latestX = ev.clientX;
+				if (raf) return;
+				raf = requestAnimationFrame(() => {
+					raf = null;
+					const delta = latestX - startX;
+					const newW = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, startWidth + delta));
+					this.state.colWidths.set(key, newW);
+					const px = newW + "px";
+					document.querySelectorAll(`.munzer-iw [data-key="${CSS.escape(key)}"]`).forEach((el) => {
+						el.style.width = px;
+					});
+				});
+			};
+			const onUp = () => {
+				document.removeEventListener("mousemove", onMove);
+				document.removeEventListener("mouseup", onUp);
+				document.body.style.cursor = prevCursor;
+				document.body.style.userSelect = prevSelect;
+				$body.find(".iw-th-resize-active").removeClass("iw-th-resize-active");
+				this.saveColWidths();
+			};
+			document.addEventListener("mousemove", onMove);
+			document.addEventListener("mouseup", onUp);
+		});
+
+		// Click on the resize handle should never trigger sort
+		$body.on("click", ".iw-th-resize", (e) => {
+			e.stopPropagation();
+		});
+
+		// Double-click the resize handle = auto-fit to widest cell content
+		$body.on("dblclick", ".iw-th-resize", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const key = e.currentTarget.dataset.resizeKey;
+			const col = COLUMNS.find((c) => c.key === key);
+			if (!col) return;
+			// Measure widest cell in the visible body + header label
+			let max = 0;
+			document
+				.querySelectorAll(`.munzer-iw .iw-tbody [data-key="${CSS.escape(key)}"]`)
+				.forEach((el) => {
+					const w = el.scrollWidth;
+					if (w > max) max = w;
+				});
+			const headerEl = document.querySelector(`.munzer-iw .iw-thead [data-key="${CSS.escape(key)}"]`);
+			if (headerEl) max = Math.max(max, headerEl.scrollWidth);
+			const newW = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, max + 28));
+			this.state.colWidths.set(key, newW);
+			this.saveColWidths();
+			this.renderTableHeader();
+			this.renderTableBody(true);
 		});
 
 		// Select-all checkbox (selects all visible/loaded rows)
@@ -689,7 +773,8 @@ class InventoryWorkstation {
 		}
 
 		const stickyCls = c.sticky === "right" ? "iw-td-sticky-right" : "";
-		return `<div class="iw-td iw-td-${align} ${stickyCls}" style="width:${c.width}px" title="${frappe.utils.escape_html(titleAttr)}">${inner}</div>`;
+		const w = this.colWidth(c);
+		return `<div class="iw-td iw-td-${align} ${stickyCls}" data-key="${c.key}" style="width:${w}px" title="${frappe.utils.escape_html(titleAttr)}">${inner}</div>`;
 	}
 
 	// ---------------------------------------------------------------- export
@@ -910,6 +995,26 @@ class InventoryWorkstation {
 		} catch (e) {}
 	}
 
+	loadColWidths() {
+		try {
+			const raw = localStorage.getItem(STORAGE_WIDTHS);
+			return raw ? new Map(JSON.parse(raw)) : new Map();
+		} catch (e) {
+			return new Map();
+		}
+	}
+
+	saveColWidths() {
+		try {
+			localStorage.setItem(STORAGE_WIDTHS, JSON.stringify([...this.state.colWidths]));
+		} catch (e) {}
+	}
+
+	colWidth(c) {
+		const v = this.state.colWidths.get(c.key);
+		return v && Number.isFinite(v) ? v : c.width;
+	}
+
 	isColVisible(col) {
 		const v = this.state.colVis.get(col.key);
 		return v === undefined ? !!col.defaultVisible : !!v;
@@ -1027,7 +1132,9 @@ class InventoryWorkstation {
 			} else if (act === "reset") {
 				me.state.colVis.clear();
 				me.state.colOrder = [];
+				me.state.colWidths.clear();
 				me.saveColOrder();
+				me.saveColWidths();
 			}
 			renderList();
 			applyTable();
@@ -1323,12 +1430,38 @@ const STYLES = `
 	white-space:nowrap;
 	text-overflow:ellipsis;
 }
+.munzer-iw .iw-th { position: relative; }
 .munzer-iw .iw-th-check, .munzer-iw .iw-td-check { width:40px; padding:0 8px; flex-shrink:0; }
 .munzer-iw .iw-th-check input, .munzer-iw .iw-td-check input { accent-color: var(--orange); cursor:pointer; }
 .munzer-iw .iw-th-sortable { cursor:pointer; user-select:none; }
 .munzer-iw .iw-th-sortable:hover { background:var(--bg-2); }
 .munzer-iw .iw-th-sorted { color:var(--ink); }
 .munzer-iw .iw-th-arrow { color:var(--orange); font-size:10px; margin-left:4px; }
+
+/* ---- Excel-style column resize handle ---- */
+.munzer-iw .iw-th-resize {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	width: 6px;
+	height: 100%;
+	cursor: col-resize;
+	z-index: 6;
+	background: transparent;
+	transition: background 0.12s ease;
+}
+.munzer-iw .iw-th-resize::before {
+	content: "";
+	position: absolute;
+	top: 8px; bottom: 8px; left: 50%;
+	width: 1px;
+	background: transparent;
+	transition: background 0.12s ease;
+}
+.munzer-iw .iw-th-resize:hover::before { background: var(--orange); }
+.munzer-iw .iw-th-resize:hover { background: rgba(255,153,0,0.12); }
+.munzer-iw .iw-th-resize-active { background: rgba(255,153,0,0.25); }
+.munzer-iw .iw-th-resize-active::before { background: var(--orange); }
 .munzer-iw .iw-th-right { justify-content:flex-end; text-align:right; }
 .munzer-iw .iw-td-right { justify-content:flex-end; text-align:right; }
 
