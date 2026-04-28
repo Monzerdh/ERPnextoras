@@ -1,0 +1,1 @@
+munzer_app.patches.v0_0_1.rename_module_to_munzer_oras_app

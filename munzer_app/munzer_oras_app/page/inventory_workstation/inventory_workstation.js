@@ -651,7 +651,7 @@ class InventoryWorkstation {
 		if (this.state.scan_serials) filters.scan_codes = this.state.scan_serials;
 		frappe
 			.call({
-				method: "munzer_app.munzer_app.api.list_serials",
+				method: "munzer_app.munzer_oras_app.api.list_serials",
 				args: {
 					filters: JSON.stringify(filters),
 					page: pageNum,
@@ -799,7 +799,7 @@ class InventoryWorkstation {
 		});
 
 		// hidden iframe trigger so the page doesn't navigate away
-		const url = `/api/method/munzer_app.munzer_app.api.export_xlsx?${params.toString()}`;
+		const url = `/api/method/munzer_app.munzer_oras_app.api.export_xlsx?${params.toString()}`;
 		const iframe = document.createElement("iframe");
 		iframe.style.display = "none";
 		iframe.src = url;
@@ -950,7 +950,7 @@ class InventoryWorkstation {
 				dialog.hide();
 				frappe
 					.call({
-						method: "munzer_app.munzer_app.api.bulk_change_status",
+						method: "munzer_app.munzer_oras_app.api.bulk_change_status",
 						args: { serial_nos: JSON.stringify(sns), status },
 					})
 					.then((r) => {

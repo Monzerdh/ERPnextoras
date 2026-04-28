@@ -3,7 +3,7 @@ name = "munzer_app"
 authors = [
     { name = "Monzerdh", email = "Monzerdh@users.noreply.github.com" }
 ]
-description = "Custom inventory tooling for ORAS — Item Master Report S"
+description = "Munzer Oras App — Item Master Report S + Inventory Workstation for ORAS"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]

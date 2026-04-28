@@ -1,44 +1,56 @@
-# Munzer App
+# Munzer Oras App
 
 Standalone Frappe app for ORAS, shipping two ERPNext-grade tools:
 
 1. **Item Master Report S** — scanner-first query report with multi-barcode
    scanning, column show/hide, instant CSV, ORAS-branded UI.
-2. **Inventory Workstation** — Amazon-style operational page for warehouse
-   staff: split-view (list ↔ detail), always-focused scanner, bulk
-   status/location actions, realtime updates between users, ledger preview.
+2. **Inventory Workstation** — Amazon Seller Central style operational page
+   for warehouse staff: virtualized 70k-row table, drag-to-reorder columns,
+   resizable columns, sidebar item-name + multi-line scan filter, server-side
+   Excel export of all filtered rows, realtime updates between users.
 
 > **Repo URL**: https://github.com/Monzerdh/ERPnextoras
-> **App name**: `munzer_app` &nbsp;·&nbsp; **Module**: `Munzer App` &nbsp;·&nbsp; **Requires**: ERPNext
+> **Python package**: `munzer_app` &nbsp;·&nbsp; **App title**: Munzer Oras App &nbsp;·&nbsp; **Module**: `Munzer Oras App` &nbsp;·&nbsp; **Requires**: ERPNext
+
+> **Renaming note** — the app's display title and module name were renamed
+> from "Munzer App" to "Munzer Oras App" in v0.0.2. A migration patch under
+> `munzer_app/patches/v0_0_1/rename_module_to_munzer_oras_app.py` runs once
+> on the next `bench migrate` to rename the existing Module Def in the DB
+> and cascade the change to all linked DocTypes / Reports / Pages. The
+> *Python package* directory (`munzer_app/`) is unchanged on purpose —
+> only the inner module folder is now `munzer_oras_app/`.
 
 ## Layout
 
 ```
-munzer_app/                         <- python package (top-level)
+munzer_app/                         <- python package (top-level, unchanged)
   __init__.py                       <- __version__
   hooks.py                          <- doc_events for realtime
-  modules.txt                       <- "Munzer App"
-  patches.txt
+  modules.txt                       <- "Munzer Oras App"
+  patches.txt                       <- module rename patch registered here
   config/
     __init__.py
-    desktop.py
-  munzer_app/                       <- module folder
+    desktop.py                      <- Workspace card label "Munzer Oras App"
+  munzer_oras_app/                  <- module folder (renamed from munzer_app/)
     __init__.py
     api.py                          <- whitelisted endpoints (workstation)
     report/
       __init__.py
       item_master_report_s/
         __init__.py
-        item_master_report_s.json
+        item_master_report_s.json   <- module: "Munzer Oras App"
         item_master_report_s.py
         item_master_report_s.js
     page/
       __init__.py
       inventory_workstation/
         __init__.py
-        inventory_workstation.json
+        inventory_workstation.json  <- module: "Munzer Oras App"
         inventory_workstation.js
-pyproject.toml / setup.py / requirements.txt / MANIFEST.in / license.txt
+  patches/
+    v0_0_1/
+      rename_module_to_munzer_oras_app.py
+pyproject.toml / MANIFEST.in / license.txt
 ```
 
 ## Item Master Report S
