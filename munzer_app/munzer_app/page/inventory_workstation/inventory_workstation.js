@@ -340,31 +340,71 @@ class InventoryWorkstation {
 			$("#iw-item-name").val("").trigger("input").trigger("focus");
 		});
 
-		// Scan textarea (dedup + debounced refresh)
-		$body.on("input", "#iw-scan", function () {
-			const lines = this.value.split(/\r?\n/);
-			const seen = new Set();
+		// Scan textarea — scanner-friendly:
+		// • during keystrokes/scans we ONLY update the live count, never mutate the
+		//   textarea value (so the cursor stays where the scanner left it).
+		// • after a short idle (350ms) we dedupe in place AND keep a trailing
+		//   newline so the next scan lands on a fresh line, not glued to the
+		//   previous code.
+		const dedupeScan = (ta) => {
+			const acc = new Set();
 			const out = [];
-			for (const line of lines) {
+			for (const line of ta.value.split(/\r\n|\r|\n/)) {
 				const t = line.trim();
-				if (!t) continue;
-				if (seen.has(t)) continue; // drop duplicates
-				seen.add(t);
-				out.push(t);
+				if (t && !acc.has(t)) {
+					acc.add(t);
+					out.push(t);
+				}
 			}
-			const cleaned = out.join("\n");
-			if (cleaned !== this.value) {
-				const pos = this.selectionStart;
-				this.value = cleaned;
-				this.selectionStart = this.selectionEnd = Math.min(pos, cleaned.length);
+			const cleaned = out.length ? out.join("\n") + "\n" : "";
+			if (cleaned !== ta.value) {
+				const wasFocused = document.activeElement === ta;
+				ta.value = cleaned;
+				if (wasFocused) {
+					ta.selectionStart = ta.selectionEnd = cleaned.length;
+				}
 			}
-			$("#iw-scan-meta").text(`${out.length} ${__("codes")}`);
+			return out;
+		};
+
+		const countDistinct = (raw) => {
+			const seen = new Set();
+			let n = 0;
+			for (const line of raw.split(/\r\n|\r|\n/)) {
+				const t = line.trim();
+				if (t && !seen.has(t)) {
+					seen.add(t);
+					n++;
+				}
+			}
+			return n;
+		};
+
+		$body.on("input", "#iw-scan", function () {
+			const ta = this;
+			$("#iw-scan-meta").text(`${countDistinct(ta.value)} ${__("codes")}`);
 			clearTimeout(me.scanDebounce);
 			me.scanDebounce = setTimeout(() => {
-				me.state.scan_serials = cleaned;
+				const out = dedupeScan(ta);
+				$("#iw-scan-meta").text(`${out.length} ${__("codes")}`);
+				me.state.scan_serials = out.join("\n");
 				me.renderActiveChips();
 				me.refresh();
-			}, 220);
+			}, 350);
+		});
+		// Scanners terminate each barcode with Enter — let the default behaviour
+		// insert the newline (so the next scan lands on a new line). We only
+		// debounce the dedupe / refresh.
+		$body.on("blur", "#iw-scan", function () {
+			const ta = this;
+			clearTimeout(me.scanDebounce);
+			const out = dedupeScan(ta);
+			$("#iw-scan-meta").text(`${out.length} ${__("codes")}`);
+			if (me.state.scan_serials !== out.join("\n")) {
+				me.state.scan_serials = out.join("\n");
+				me.renderActiveChips();
+				me.refresh();
+			}
 		});
 		$body.on("click", "#iw-scan-clear", () => {
 			$("#iw-scan").val("").trigger("input").trigger("focus");
