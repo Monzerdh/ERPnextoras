@@ -30,18 +30,36 @@ const STATUS_TONES = {
 	Expired: { bg: "#FFF3E0", fg: "#C7511F", dot: "#FF9900" },
 };
 
-// Default visible columns (user can extend later).
+// Master list of every column the page can show. `defaultVisible: false` means
+// the user has to opt in via the Columns dialog. User choices are persisted in
+// localStorage under STORAGE_VIS so refreshing keeps the same view.
+const STORAGE_VIS = "munzer_iw_columns_v2";
+
 const COLUMNS = [
-	{ key: "serial_no", label: "Serial No", sortable: true, width: 170, align: "left", mono: true, link: true },
-	{ key: "item_name", label: "Item Name", sortable: true, width: 280, align: "left" },
-	{ key: "category", label: "Category", sortable: true, width: 160, align: "left" },
-	{ key: "grade", label: "Grade", sortable: true, width: 90, align: "left", pill: true },
-	{ key: "status", label: "Status", sortable: true, width: 130, align: "left", inlineEdit: "status" },
-	{ key: "warehouse", label: "Warehouse", sortable: true, width: 130, align: "left" },
-	{ key: "purchase_price", label: "Purchase", sortable: true, width: 110, align: "right", money: true },
-	{ key: "selling_price", label: "Selling", sortable: true, width: 110, align: "right", money: true },
-	{ key: "creation", label: "Date Added", sortable: true, width: 130, align: "left", date: true },
-	{ key: "days_in_stock", label: "Days in Stock", sortable: true, width: 120, align: "right" },
+	{ key: "serial_no",            label: "Serial No",       sortable: true, width: 170, align: "left",  mono: true, link: true,           defaultVisible: true },
+	{ key: "item_code",            label: "Item Code",       sortable: true, width: 130, align: "left",  mono: true,                       defaultVisible: false },
+	{ key: "item_name",            label: "Item Name",       sortable: true, width: 280, align: "left",                                    defaultVisible: true },
+	{ key: "super_category",       label: "Super Category",  sortable: true, width: 150, align: "left",                                    defaultVisible: false },
+	{ key: "category",             label: "Category",        sortable: true, width: 160, align: "left",                                    defaultVisible: true },
+	{ key: "sub_category",         label: "Sub Category",    sortable: true, width: 150, align: "left",                                    defaultVisible: false },
+	{ key: "grade",                label: "Grade",            sortable: true, width: 90,  align: "left",  pill: true,                       defaultVisible: true },
+	{ key: "status",               label: "Status",           sortable: true, width: 140, align: "left",  inlineEdit: "status",             defaultVisible: true },
+	{ key: "warehouse",            label: "Warehouse",        sortable: true, width: 130, align: "left",                                    defaultVisible: true },
+	{ key: "location_name",        label: "Location",         sortable: true, width: 140, align: "left",                                    defaultVisible: false },
+	{ key: "box",                  label: "Box",              sortable: true, width: 100, align: "left",                                    defaultVisible: false },
+	{ key: "batch",                label: "Batch",            sortable: true, width: 130, align: "left",                                    defaultVisible: false },
+	{ key: "customer",             label: "Customer",         sortable: true, width: 160, align: "left",  link: "customer",                 defaultVisible: false },
+	{ key: "sales_invoice",        label: "Sales Invoice",    sortable: true, width: 150, align: "left",  link: "sales-invoice",            defaultVisible: false },
+	{ key: "asin",                 label: "ASIN",             sortable: true, width: 140, align: "left",  amazon: true,                     defaultVisible: false },
+	{ key: "tracking_number",      label: "Tracking",         sortable: true, width: 150, align: "left",                                    defaultVisible: false },
+	{ key: "shipment_request_id",  label: "Shipment ID",      sortable: false,width: 150, align: "left",                                    defaultVisible: false },
+	{ key: "condition",            label: "Condition",         sortable: false,width: 120, align: "left",                                    defaultVisible: false },
+	{ key: "item_with_grade",      label: "Item w/ Grade",    sortable: false,width: 170, align: "left",                                    defaultVisible: false },
+	{ key: "purchase_price",       label: "Purchase",          sortable: true, width: 110, align: "right", money: true,                      defaultVisible: true },
+	{ key: "selling_price",        label: "Selling",           sortable: true, width: 110, align: "right", money: true,                      defaultVisible: true },
+	{ key: "mrp",                  label: "MRP",               sortable: true, width: 110, align: "right", money: true,                      defaultVisible: false },
+	{ key: "creation",             label: "Date Added",       sortable: true, width: 130, align: "left",  date: true,                       defaultVisible: true },
+	{ key: "days_in_stock",        label: "Days in Stock",    sortable: true, width: 120, align: "right",                                   defaultVisible: true },
 ];
 
 // All filters defined here. `kind` controls how the dropdown fetches options.
@@ -89,6 +107,7 @@ class InventoryWorkstation {
 			sort_by: "creation",
 			sort_dir: "desc",
 			openDropdown: null,
+			colVis: this.loadColVis(), // Map<string, bool> — explicit user choices
 		};
 		this.searchDebounce = null;
 		this.scanDebounce = null;
@@ -244,7 +263,7 @@ class InventoryWorkstation {
 	// ---------------------------------------------------------------- table header
 	renderTableHeader() {
 		const $thead = $("#iw-thead", this.page.body);
-		const cols = COLUMNS.map((c) => {
+		const cols = this.visibleColumns().map((c) => {
 			const isSorted = this.state.sort_by === c.key;
 			const arrow = isSorted ? (this.state.sort_dir === "asc" ? "▲" : "▼") : "";
 			const cls = `iw-th ${c.sortable ? "iw-th-sortable" : ""} ${isSorted ? "iw-th-sorted" : ""} iw-th-${c.align || "left"}`;
@@ -584,7 +603,7 @@ class InventoryWorkstation {
 			return `<div class="iw-tr iw-tr-skel" style="top:${top}px"><div class="iw-skel-bar"></div></div>`;
 		}
 		const isSel = this.state.selected.has(r.serial_no);
-		const cells = COLUMNS.map((c) => this.renderCell(r, c)).join("");
+		const cells = this.visibleColumns().map((c) => this.renderCell(r, c)).join("");
 		return `
 			<div class="iw-tr ${isSel ? "iw-tr-selected" : ""} ${idx % 2 ? "iw-tr-odd" : "iw-tr-even"}"
 				style="top:${top}px" data-sn="${frappe.utils.escape_html(r.serial_no)}">
@@ -606,8 +625,13 @@ class InventoryWorkstation {
 					${ALL_STATUSES.map((s) => `<option value="${s}" ${s === v ? "selected" : ""}>${s}</option>`).join("")}
 				</select>
 			`;
-		} else if (c.link && c.key === "serial_no") {
-			inner = `<a href="/app/serial-no/${encodeURIComponent(v || "")}" target="_blank" class="iw-link iw-mono">${frappe.utils.escape_html(v || "")}</a>`;
+		} else if (c.link === true && c.key === "serial_no") {
+			inner = v ? `<a href="/app/serial-no/${encodeURIComponent(v)}" target="_blank" class="iw-link iw-mono">${frappe.utils.escape_html(v)}</a>` : "<span class='iw-dim'>—</span>";
+		} else if (typeof c.link === "string" && v) {
+			inner = `<a href="/app/${c.link}/${encodeURIComponent(v)}" target="_blank" class="iw-link">${frappe.utils.escape_html(String(v))}</a>`;
+		} else if (c.amazon && v) {
+			const a = frappe.utils.escape_html(String(v));
+			inner = `<a href="https://www.amazon.ae/dp/${a}" target="_blank" class="iw-link iw-mono">${a} ↗</a>`;
 		} else if (c.money) {
 			inner = v ? `AED ${fmtMoney(v)}` : "—";
 		} else if (c.date) {
@@ -842,11 +866,95 @@ class InventoryWorkstation {
 		dialog.show();
 	}
 
-	// ---------------------------------------------------------------- column dialog (placeholder for future use)
+	// ---------------------------------------------------------------- columns
+	loadColVis() {
+		try {
+			const raw = localStorage.getItem(STORAGE_VIS);
+			return raw ? new Map(JSON.parse(raw)) : new Map();
+		} catch (e) {
+			return new Map();
+		}
+	}
+
+	saveColVis() {
+		try {
+			localStorage.setItem(STORAGE_VIS, JSON.stringify([...this.state.colVis]));
+		} catch (e) {}
+	}
+
+	isColVisible(col) {
+		const v = this.state.colVis.get(col.key);
+		return v === undefined ? !!col.defaultVisible : !!v;
+	}
+
+	visibleColumns() {
+		return COLUMNS.filter((c) => this.isColVisible(c));
+	}
+
 	openColumnDialog() {
-		frappe.msgprint({
+		const me = this;
+		const dialog = new frappe.ui.Dialog({
 			title: __("Columns"),
-			message: __("Custom column visibility is coming next iteration. The Excel export already includes every column."),
+			size: "small",
+			fields: [
+				{
+					fieldname: "html",
+					fieldtype: "HTML",
+					options: `
+						<div class="iw-col-mgr">
+							<div class="iw-col-mgr-actions">
+								<button type="button" class="iw-btn-link" data-act="all">${__("Show all")}</button>
+								<button type="button" class="iw-btn-link" data-act="none">${__("Hide all")}</button>
+								<button type="button" class="iw-btn-link" data-act="reset">${__("Reset to defaults")}</button>
+							</div>
+							<div class="iw-col-mgr-list">
+								${COLUMNS.map(
+									(c) => `
+									<label class="iw-col-mgr-row">
+										<input type="checkbox" data-key="${c.key}" ${me.isColVisible(c) ? "checked" : ""} />
+										<span>${frappe.utils.escape_html(c.label)}</span>
+										${!c.defaultVisible ? `<span class="iw-col-mgr-tag">${__("optional")}</span>` : ""}
+									</label>
+								`,
+								).join("")}
+							</div>
+						</div>
+					`,
+				},
+			],
+			primary_action_label: __("Done"),
+			primary_action: () => dialog.hide(),
+		});
+
+		dialog.show();
+		const $w = dialog.$wrapper;
+
+		const apply = () => {
+			me.saveColVis();
+			me.renderTableHeader();
+			me.renderTableBody(true);
+		};
+
+		$w.on("change", "input[type=checkbox]", (e) => {
+			const key = e.currentTarget.dataset.key;
+			me.state.colVis.set(key, e.currentTarget.checked);
+			apply();
+		});
+
+		$w.on("click", "[data-act]", (e) => {
+			const act = e.currentTarget.dataset.act;
+			if (act === "all") {
+				COLUMNS.forEach((c) => me.state.colVis.set(c.key, true));
+			} else if (act === "none") {
+				COLUMNS.forEach((c) => me.state.colVis.set(c.key, false));
+			} else if (act === "reset") {
+				me.state.colVis.clear();
+			}
+			$w.find("input[type=checkbox]").each((_i, el) => {
+				const col = COLUMNS.find((c) => c.key === el.dataset.key);
+				el.checked = me.isColVisible(col);
+			});
+			apply();
 		});
 	}
 
@@ -1226,4 +1334,37 @@ const STYLES = `
 .iw-pop-opt input { accent-color:#FF9900; }
 .iw-pop-opt-hint { color:#6F7373; font-size:11px; margin-left:auto; }
 .iw-pop-foot { display:flex; justify-content:space-between; padding:8px; border-top:1px solid #ECECEC; }
+
+/* ---- column manager dialog ---- */
+.iw-col-mgr { display:flex; flex-direction:column; gap:10px; }
+.iw-col-mgr-actions {
+	display:flex; gap:14px;
+	padding-bottom:8px;
+	border-bottom:1px solid #ECECEC;
+}
+.iw-col-mgr-list {
+	display:flex; flex-direction:column;
+	max-height: 50vh;
+	overflow-y:auto;
+}
+.iw-col-mgr-row {
+	display:flex; align-items:center; gap:10px;
+	padding:6px 4px;
+	border-radius:4px;
+	cursor:pointer;
+	font-size:13px;
+	color:#0F1111;
+}
+.iw-col-mgr-row:hover { background:#FFF8EB; }
+.iw-col-mgr-row input { accent-color:#FF9900; cursor:pointer; }
+.iw-col-mgr-tag {
+	margin-left:auto;
+	font-size:10px;
+	text-transform:uppercase;
+	letter-spacing:0.6px;
+	color:#6F7373;
+	background:#EAEDED;
+	padding:1px 6px;
+	border-radius:3px;
+}
 `;
