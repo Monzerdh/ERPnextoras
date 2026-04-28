@@ -43,7 +43,7 @@ const COLUMNS = [
 	{ key: "category",             label: "Category",        sortable: true, width: 160, align: "left",                                    defaultVisible: true },
 	{ key: "sub_category",         label: "Sub Category",    sortable: true, width: 150, align: "left",                                    defaultVisible: false },
 	{ key: "grade",                label: "Grade",            sortable: true, width: 90,  align: "left",  pill: true,                       defaultVisible: true },
-	{ key: "status",               label: "Status",           sortable: true, width: 140, align: "left",  inlineEdit: "status",             defaultVisible: true },
+	{ key: "status",               label: "Status",           sortable: true, width: 130, align: "left",  statusPill: true,                 defaultVisible: true },
 	{ key: "warehouse",            label: "Warehouse",        sortable: true, width: 130, align: "left",                                    defaultVisible: true },
 	{ key: "location_name",        label: "Location",         sortable: true, width: 140, align: "left",                                    defaultVisible: false },
 	{ key: "box",                  label: "Box",              sortable: true, width: 100, align: "left",                                    defaultVisible: false },
@@ -449,13 +449,6 @@ class InventoryWorkstation {
 			this.renderFooter();
 		});
 
-		// Inline status edit
-		$body.on("change", ".iw-inline-status", (e) => {
-			const sn = e.currentTarget.closest(".iw-tr").dataset.sn;
-			const status = e.currentTarget.value;
-			this.inlineStatusChange(sn, status, e.currentTarget);
-		});
-
 		// Bottom bar buttons
 		$body.on("click", "#iw-export", () => this.exportXlsx({ selected: false }));
 		$body.on("click", "#iw-export-selected", () => this.exportXlsx({ selected: true }));
@@ -618,13 +611,13 @@ class InventoryWorkstation {
 		const align = c.align || "left";
 		let inner;
 
-		if (c.inlineEdit === "status") {
-			const tone = STATUS_TONES[v] || STATUS_TONES.Inactive;
-			inner = `
-				<select class="iw-inline-status" style="--bg:${tone.bg};--fg:${tone.fg}">
-					${ALL_STATUSES.map((s) => `<option value="${s}" ${s === v ? "selected" : ""}>${s}</option>`).join("")}
-				</select>
-			`;
+		if (c.statusPill) {
+			if (v) {
+				const tone = STATUS_TONES[v] || STATUS_TONES.Inactive;
+				inner = `<span class="iw-status-pill" style="--bg:${tone.bg};--fg:${tone.fg};--dot:${tone.dot}"><span class="iw-status-dot"></span>${frappe.utils.escape_html(v)}</span>`;
+			} else {
+				inner = "<span class='iw-dim'>—</span>";
+			}
 		} else if (c.link === true && c.key === "serial_no") {
 			inner = v ? `<a href="/app/serial-no/${encodeURIComponent(v)}" target="_blank" class="iw-link iw-mono">${frappe.utils.escape_html(v)}</a>` : "<span class='iw-dim'>—</span>";
 		} else if (typeof c.link === "string" && v) {
@@ -645,39 +638,6 @@ class InventoryWorkstation {
 		}
 
 		return `<div class="iw-td iw-td-${align}" style="width:${c.width}px" title="${frappe.utils.escape_html(String(v ?? ""))}">${inner}</div>`;
-	}
-
-	// ---------------------------------------------------------------- inline status
-	inlineStatusChange(serial_no, status, selectEl) {
-		const original = selectEl.dataset.original;
-		selectEl.disabled = true;
-		frappe
-			.call({
-				method: "munzer_app.munzer_app.api.bulk_change_status",
-				args: { serial_nos: JSON.stringify([serial_no]), status },
-			})
-			.then((r) => {
-				const res = r.message || {};
-				if (res.updated) {
-					frappe.show_alert({ message: `${serial_no}: ${status}`, indicator: "green" });
-					// patch local row
-					for (const row of this.state.rowsByIndex.values()) {
-						if (row.serial_no === serial_no) {
-							row.status = status;
-							break;
-						}
-					}
-					this.renderTableBody(true);
-				} else {
-					frappe.show_alert({ message: __("Update failed"), indicator: "red" });
-					if (original) selectEl.value = original;
-				}
-				selectEl.disabled = false;
-			})
-			.catch(() => {
-				selectEl.disabled = false;
-				if (original) selectEl.value = original;
-			});
 	}
 
 	// ---------------------------------------------------------------- export
@@ -1243,25 +1203,23 @@ const STYLES = `
 }
 .munzer-iw .iw-dim { color:var(--ink-3); }
 
-.munzer-iw .iw-inline-status {
-	background:var(--bg, #fff);
-	background-color:var(--bg);
-	color:var(--fg);
-	border:1px solid transparent;
+.munzer-iw .iw-status-pill {
+	display:inline-flex; align-items:center; gap:6px;
+	background:var(--bg, #EAEDED);
+	color:var(--fg, #565959);
 	border-radius:999px;
-	padding:2px 22px 2px 10px;
+	padding:3px 10px 3px 8px;
 	font-size:11px;
 	font-weight:700;
 	letter-spacing:0.4px;
 	text-transform:uppercase;
-	cursor:pointer;
-	appearance:none;
-	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'><path fill='currentColor' d='M3 4.5l3 3 3-3'/></svg>");
-	background-repeat:no-repeat;
-	background-position: right 6px center;
-	background-size: 10px 10px;
+	user-select:none;
 }
-.munzer-iw .iw-inline-status:focus { outline:2px solid var(--orange); outline-offset:1px; }
+.munzer-iw .iw-status-dot {
+	width:7px; height:7px; border-radius:50%;
+	background:var(--dot, currentColor);
+	flex-shrink:0;
+}
 
 /* skeleton row while a page is loading */
 .munzer-iw .iw-tr-skel { background:#fff; }
